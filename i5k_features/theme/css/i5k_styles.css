@@ -1,0 +1,165 @@
+
+#popup-message-window {
+display: none;
+position: fixed;
+_position: absolute;
+overflow: auto;
+background: #FFFFFF;
+border: 2px solid #cecece;
+z-index: 200;
+padding: 12px;
+font-size: 13px;
+}
+
+#popup-message-window {
+font-family: monospace;
+}
+
+
+#popup-message-background {
+display: none;
+position: fixed;
+_position: absolute;
+height: 100%;
+width: 100%;
+top: 0;
+left: 0;
+background: #000000;
+border: 1px solid #cecece;
+z-index: 1;
+}
+
+#popup-message-close {
+font-size: 18px;
+line-height: 14px;
+right: 6px;
+top: 4px;
+position: absolute;
+color: #111111;
+font-weight: 700;
+display: block;
+cursor: pointer;
+}
+
+/*feature detail transcript */
+table#tripal_feature-table-base,
+table#tripal_feature-detail-transcript  {
+  max-width: 70%;  
+  border: 0px;
+}
+
+#tripal_feature-fasta-detail-transcript th {
+  background: #CCCCCC  !important;
+}
+
+#tripal_feature-detail-transcript th,
+#tripal_feature-table-base th
+ {
+  background: none !important;
+  vertical-align: top !important;
+  text-align: right;
+  font-weight: bold;
+  overflow: hidden;
+  text-align: right;  
+  white-space: nowrap; 
+  max-width: 40%; 
+  padding-right: 10px;
+  border: 0px !important;
+}
+
+a#detail_transcript_view,
+a.tripal_toc_list_item_link {
+  text-decoration: underline;
+}
+
+#tripal_feature-table-base td,
+#tripal_feature-detail-transcript td {
+  border: 0px !important;
+}
+
+#transcript_item {
+  float: left;
+  width: 100%;
+  margin-top: -5px;
+}
+
+#transcript_value {
+  float: left;
+  margin-top: 5px;
+}
+
+/*Accordion*/
+#multiAccordion{
+  width:90%;
+}
+#multiAccordion h2, #multiAccordion h3, 
+#multiAccordion div, #multiAccordion ol, 
+#multiAccordion li{
+  /* reset styles for accordion */
+  margin:0;
+  padding:0;
+  font-size:1em;
+  font-weight:normal;
+  list-style:circle;
+}
+#multiAccordion div{
+  display:none;
+  color:#555;
+  overflow:hidden;
+}
+#multiAccordion h2{
+  cursor:pointer;
+  color:#fff;
+  font-size:1.1em;
+  moz-border-radius: 5px 5px 0 0;
+  -webkit-border-radius: 5px 5px 0 0;
+  border-radius: 5px 5px 0 0;
+  padding:5px;
+  margin-top:3px;
+  background-color: #333;
+  background-image: -webkit-gradient(linear, left top, left bottom, from(#333), to(#4B8CFF));
+  background-image: -webkit-linear-gradient(top, #333, #4B8CFF);
+  background-image: -moz-linear-gradient(top, #333, #4B8CFF);
+  background-image: -ms-linear-gradient(top, #333, #4B8CFF);
+  background-image: -o-linear-gradient(top, #333, #4B8CFF);
+  background-image: linear-gradient(to bottom, #333, #4B8CFF);
+}
+#multiAccordion h3{
+  cursor:pointer;
+  padding:5px;
+  color: #666;
+  margin-top: 2px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  background-color: #ddd;
+  background-image: -webkit-gradient(linear, left top, left bottom, from(#f5f5f5), to(#ddd));
+  background-image: -webkit-linear-gradient(top, #f5f5f5, #ddd);
+  background-image: -moz-linear-gradient(top, #f5f5f5, #ddd);
+  background-image: -ms-linear-gradient(top, #f5f5f5, #ddd);
+  background-image: -o-linear-gradient(top, #f5f5f5, #ddd);
+  background-image: linear-gradient(to bottom, #f5f5f5, #ddd);
+}
+
+#multiAccordion h3:hover{
+  color:#000;
+}
+#multiAccordion h3 + div{
+  background-color:#F5F5F5;
+  padding:5px 5px 5px 30px;
+}
+#multiAccordion li:hover{
+  color:#000;
+  cursor:pointer;
+}
+
+.accordionClose span {
+  display: block;
+  float: right;
+  background: url(/sites/all/themes/i5k/images/plus.png) center center no-repeat;
+  padding: 10px;
+}
+
+.accordionOpen span {
+  float: right;
+  padding: 10px;
+  background: url(/sites/all/themes/i5k/images/minus.png) center center no-repeat;
+}

@@ -1,0 +1,389 @@
+<?php
+
+define('CDS_TYPE_ID', '325');
+define('PEP_TYPE_ID', '324');
+define('CDNA_TYPE_ID', '585');
+define('GENE_TYPE_ID', '289');
+
+require_once (dirname(__FILE__).'/../../tripal/tripal_core/includes/tripal_core.toc.inc');
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function i5k_features_menu() {
+  $items['zclip/%'] = array(
+    'title' => 'Zclip',	
+    'page callback' => 'zclip_data',	
+    'page arguments' => array(1),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  
+  return $items;
+}
+
+/**
+ * function to get the feature title.
+ * The title from featureloc is another feature of actual fid 
+ * and title is scaffold[...]. Below code is to to get
+ * actual title/name from fid from feature table.	    
+ */
+function get_feature_title($fid) {
+  $params = array('feature_id' =>  $fid);
+  $feature = chado_generate_var('feature', $params);	
+  $title = $feature->uniquename;
+  
+  return $title;
+}
+  
+/**
+ * function to retrieve the co-ordinate sequence from
+ * featureloc table 
+ */
+function sequence_from_featureloc($fid = 0, $type_id = '', $fmin = '', $fmax = '') {
+  $residues = ''; $data = array();	  	 
+  if($fid == 0)
+    return $residues;	       
+  $args[':feature_id'] = $fid;  	
+  $condition = '';
+  if(!empty($fmin) && ($type_id == CDS_TYPE_ID)) {
+    $args[':fmin'] = $fmin;
+	$args[':fmax'] = $fmax;
+	$condition = ' and fmin=:fmin and fmax=:fmax';
+  }
+  $sql = "SELECT fmin, fmax, residues, strand, f.name, f.uniquename  
+          FROM chado.feature f, chado.featureloc fc 
+          WHERE f.feature_id=fc.srcfeature_id and  fc.feature_id=:feature_id".$condition;      
+  $sequence = chado_query($sql, $args)->fetchObject();	 
+  
+  //unspliced [mRNA]/[CDS] residues from co-ordinates  
+  $start = $sequence->fmin;  
+  $size = $sequence->fmax - $start;	    
+  $data['residues'] = substr($sequence->residues, $start, $size);			 
+  $data['title'] = $sequence->uniquename;
+  
+  return $data;
+}
+
+/**
+ * Implements hook_views_api()
+ */
+function i5k_features_views_api() {
+  return array(
+      "version" => "3.0",
+	   'path' => drupal_get_path('module', 'i5k_features'),
+	  );
+}
+
+/**
+ * Implementation of hook_node_view
+ */
+function i5k_features_node_view($node, $view_mode, $langcode) {  
+  switch ($node->type) {
+    case 'chado_feature':
+	  // Show feature browser and counts
+      if($view_mode == 'full') {		
+	     $js_path = drupal_get_path('module', 'i5k_features').'/theme/js/detail_transcripts.js';
+		 drupal_add_js($js_path);	  	 
+
+		$popupjs_path = drupal_get_path('module', 'i5k_features').'/theme/js/popup.js';
+		 drupal_add_js($popupjs_path);	 		
+			
+	    $css_path = drupal_get_path('module', 'i5k_features').'/theme/css/i5k_styles.css';		
+		drupal_add_css($css_path);
+		
+
+		$node->content['tripal_feature_transcripts'] = array(
+          '#theme' => 'tripal_feature_transcripts',
+		  '#node' => $node,
+          '#tripal_toc_id'    => 'transcripts',
+          '#tripal_toc_title' => 'Transcripts',
+        );	
+
+	  }
+  }
+}
+
+/**
+ *  Push CDS data and also new CDS like unspliced mRNA
+ */
+function push_cds_data($value, $unspliced) {
+  $fmin = ($value->fmin + 1);
+  $fmax = $value->fmax;	
+  $type = ($unspliced == 1)?$value->typename." (merged)":$value->typename;	
+	
+  if($value->strand == 1)
+    $strand = '[+]';
+  else if($value->strand == -1)
+    $strand = '[-]';
+  $view_sequence = "-";	
+  $popup_str = '';
+  if($unspliced == 1) {
+  	if(!empty($value->residues)) {
+	  $popup_str = "popup_message_display_popup(".$value->feature_id.", '".$value->typename."', 680, 300,'".$unspliced."','".$value->strand."')";	
+	  $view_sequence = "<a href='#' onclick=\"".$popup_str."\">Fasta</a>";	  
+    } 
+  }
+  else if($unspliced == 0) {
+    $popup_str =  "popup_message_display_popup(".$value->feature_id.", '".$value->typename."', 680, 300, '0','".$value->strand."',".$value->fmin.",".$value->fmax.")";	    
+	$view_sequence = "<a href='#' onclick=\"".$popup_str."\">Fasta</a>";	  
+  }
+  
+  $seq_query = db_query("select f.name from chado.featureloc fc, chado.feature f where fc.srcfeature_id=f.feature_id and fc.srcfeature_id=:srcfid", array(':srcfid' => $value->srcfeature_id));
+  
+  foreach($seq_query as $seq_result) {		 
+    $seq_name = $seq_result->name;
+  } 		 
+  $data[] = array('data' =>$type, 'width' => '10%');  
+  $data[] = array('data' =>$seq_name, 'width' => '10%');  
+  $data[] = array('data' =>$fmin, 'width' => '10%');  
+  $data[] = array('data' =>$fmax, 'width' => '10%');  
+  $data[] = array('data' =>$strand, 'width' => '10%');  
+  $data[] = array('data' =>$view_sequence, 'width' => '10%'); 	  	
+  return $data; 	 
+} 
+
+/**
+ * feature alignment
+ */
+function i5k_features_feature_alignments($variables) { 
+  //we want to provide a new variable that contains the matched features.
+  $feature = $variables['node']->feature;
+
+  // get the featureloc src features
+  $options = array(
+    'return_array' => 1,
+    'include_fk' => array(
+      'srcfeature_id' => array(
+        'type_id' => 1,
+      ),
+    ),
+  );
+
+  $feature = chado_expand_var($feature, 'table', 'featureloc', $options);
+
+  // because there are two foriegn keys in the featureloc table with the feature table
+  // we have to access the records for each by specifying the field name after the table name:
+  $ffeaturelocs = $feature->featureloc->feature_id;
+
+  // now extract the sequences
+  $featureloc_sequences = tripal_feature_load_featureloc_sequences($feature->feature_id, $ffeaturelocs);
+  $feature->featureloc_sequences = $featureloc_sequences;
+ 
+  return $feature->featureloc_sequences;  
+} 
+ 
+/**
+ * push data for gene, level2 [mRNA, etc.,] and level2 unspliced - in Detail transcript view page
+ */
+function push_data($value, $unspliced) { 
+  $data = array();
+  $level1 = array('gene', 'pseudogene');
+  $level2 = array('mRNA', 'rRNA', 'ncRNA', 'tRNA', 'snRNA', 'snoRNA', 'miRNA', 'pseudogenic_transcript');   
+  
+  $fmin = $value->featureloc->feature_id->fmin + 1;
+  $fmax = $value->featureloc->feature_id->fmax;
+  
+  $type = ($unspliced == 1)?$value->type_id->name." (unspliced)":$value->type_id->name; 
+  
+  if($value->featureloc->feature_id->strand == 1)
+	$strand = '[+]';
+  else if($value->featureloc->feature_id->strand == -1)
+	$strand = '[-]';
+	
+  $srcfeature_name = $value->featureloc->feature_id->srcfeature_id->name;  
+  
+  //Residues information
+  $view_sequence = '-';
+  if(in_array($value->type_id->name, $level1) || (in_array($value->type_id->name, $level2))) {
+	$popup_str = '';
+	  if($unspliced == 1)
+		$popup_str = "popup_message_display_popup(".$value->feature_id.", '".$value->type_id->name."', 680, 300,'".$unspliced."', '".$value->featureloc->feature_id->strand."')";
+      else 
+        $popup_str =  "popup_message_display_popup(".$value->feature_id.", '".$value->type_id->name."', 680, 300, '0', '".$value->featureloc->feature_id->strand."')";		
+  } 
+    
+  $view_sequence = "<a href='#' onclick=\"".$popup_str."\">Fasta</a>";		
+  
+  $data[] = array('data' =>$type, 'width' => '10%');  
+  $data[] = array('data' =>$srcfeature_name, 'width' => '10%');  
+  $data[] = array('data' =>$fmin, 'width' => '10%');  
+  $data[] = array('data' =>$fmax, 'width' => '10%');  
+  $data[] = array('data' =>$strand, 'width' => '10%');  
+  $data[] = array('data' =>$view_sequence, 'width' => '10%');                      
+     
+  return $data;
+} 
+
+/**
+ * Popup display with corresponding residues
+ */
+function zclip_data($fid_type) {
+  $fid_type = explode("-", $fid_type);
+  $fid = $fid_type[0];
+  $type = $fid_type[1];
+  $strand = $fid_type[2]; 
+  $unspliced = $fid_type[3];   
+  
+  if(!empty($fid_type[4])) $fmin = $fid_type[4];
+  if(!empty($fid_type[5])) $fmax = $fid_type[5];
+  
+  $gene_level = array('gene', 'pseudogene');
+  $level2 = array('mRNA', 'rRNA', 'ncRNA', 'tRNA', 'snRNA', 'snoRNA', 'miRNA', 'pseudogenic_transcript');
+  
+  //To get an actual title/name from feature table using $fid.  
+  $title = get_feature_title($fid);
+  
+  $args = array(':feature_id' => $fid); 	  
+  $featureloc_flag = 0;
+  if(in_array($type, $gene_level))  {     
+	// As the residues is empty in feature table so getting the // sequence from featureloc table.	
+    $sql = "SELECT fmin, fmax, residues, strand, f.name   
+	        FROM chado.feature f, chado.featureloc fc 
+			WHERE f.feature_id=fc.srcfeature_id and  fc.feature_id=:feature_id";
+    $sequence = chado_query($sql, $args)->fetchObject();
+	
+	$residues = '';	  		
+	if(!empty($sequence->residues)) { 	  
+	  $start = $sequence->fmin;
+	  $size = $sequence->fmax - $sequence->fmin;				
+      $residues = substr($sequence->residues, $start, $size);			 
+	} 
+	$featureloc_flag = 1;
+	
+  } else if(in_array($type, $level2)) {      
+	$type_id_cdna = CDNA_TYPE_ID;	
+	
+	/* Here mRNA spliced sequence means cdna residues
+	 * [mRNA] unspliced means sequence from scaffold co-ordinates
+	 */
+	if($unspliced == 1) {	  	  	  	
+	  $title_residues = sequence_from_featureloc($fid);	  
+	  $residues = $title_residues['residues'];	  	  
+	  $title = $title.":".$type." (unspliced)";
+	} else {
+	  // mRNA residues from feature table.
+      $sql = "select uniquename, residues from chado.feature where uniquename=(select uniquename from chado.feature where feature_id=:feature_id) and type_id=".$type_id_cdna;
+	  $sequence = chado_query($sql, $args)->fetchObject();		  
+	  $residues = $sequence->residues;
+	  $title = $sequence->uniquename.":".$type;
+	}	  			
+  } else if($type == 'CDS') { // CDS residue sequence  
+    $type_id_cds = CDS_TYPE_ID;	
+    if($unspliced == 0) {	// 1 - from co-ordinates	  
+	  $title_residues = sequence_from_featureloc($fid, $type_id_cds, $fmin, $fmax);
+	  $residues = $title_residues['residues'];	
+      $title = $title.":".$type;	  
+	} else { // 0 - from residues      	
+	  $args = array(':feature_id' => $fid, ':type_id_cds' => $type_id_cds); 
+      $sql = "select name, uniquename, residues from chado.feature where uniquename=(select uniquename from chado.feature where feature_id=:feature_id) and type_id=:type_id_cds";	
+	  $sequence = chado_query($sql, $args)->fetchObject();	
+	
+	  $residues = '';	  
+	  $title = $sequence->uniquename.":".$type." (merged)"; 
+	  if(!empty($sequence->residues)) {	  			
+        $residues = $sequence->residues;			
+	  }	 	
+	} 
+  } else {	  
+    if($unspliced == 1) {	  	  	  	
+	  $title_residues = sequence_from_featureloc($fid);	  
+	  $residues = $title_residues['residues'];	  	  
+	  $title = $title.":".$type;
+	  $featureloc_flag = 1;	
+	} else {  
+      //TODO: write a query to get residues from featureloc and feature table
+      $sql = "select fr.subject_id, fr.object_id, fr.type_id, c.name as typename,
+                   f.name, f.uniquename, f.residues, f.feature_id, f.seqlen, 
+				   fc.srcfeature_id, fc.feature_id as fcfeature_id, fc.fmin, fc.fmax, fc.strand 
+			from  chado.feature_relationship fr, chado.feature f, chado.featureloc fc, chado.cvterm  c 
+			where f.feature_id=fr.subject_id and fc.feature_id=f.feature_id and f.type_id=c.cvterm_id 
+			and fr.subject_id=:fid order by c.name";   
+      $query = db_query($sql, array(':fid' => $fid));		
+  
+      $residues = '';   $title = ''; $popup = '';
+      foreach($query as $result) {  
+        $title = $result->uniquename.":".$type; 
+        $residues = $result->residues;	
+      }  // foreach closing
+	  
+	} // else closing
+    
+  } // else closing
+  
+  // FASTA sequence naming convention title followed by type.   
+  //reverse and complement the sequence if the strand is -1.   
+  if($strand == 'negative' && (($featureloc_flag == 1) || ($unspliced == 1)) ) {    	
+	// Reverse and Complement
+	$residues = tripal_reverse_compliment_sequence($residues);
+  }  
+  $i5k_path = drupal_get_path('module', 'i5k_features');
+  
+  $output_data = '<script type="text/javascript" src="/misc/jquery.js"></script> 
+    <script type="text/javascript" src="'.$i5k_path.'/theme/js/jquery.zclip.min.js"></script> 
+    <script type="text/javascript" src="'.$i5k_path.'/theme/js/jquery.snippet.min.js"></script>
+    <script type="text/javascript"> 
+    $(document).ready(function(){
+	  $("#copy-button").zclip({
+		path: "'.$i5k_path.'/theme/js/ZeroClipboard.swf",		
+		copy: function(){				  
+		   var copy_str = $(this).next().next().text();
+		   copy_str = copy_str.trim(); //copy_str.replace(/^\s+/,"");
+		   
+		  return copy_str;
+		}
+	  });
+    });
+    </script>
+	<style>
+	  #popup-message-window #copy-button {
+		background: #314C74;
+		border: 1px solid;
+		border-width: 1px;
+		color: #FFF;text-decoration: none;padding: 4px;
+	  }
+	</style>
+	<div id="popup-message-window">
+	  <a id="copy-button" href="#" class="">Copy to clipboard</a>
+      <a id="popup-message-close">X</a>
+	  <div id="popup-title-seq">';
+	//$refill = (200 - strlen($residues));	
+	//$residues = (strlen($residues) <= 200)?str_pad($residues, $refill, " ",STR_PAD_RIGHT):trim($residues);
+	
+    $title_count = strlen($title);	
+    //$seq =  '<p>>'.$title.'&#x0a;<Br>'.preg_replace("#(.{80})#","\\1<br>",$residues).'</p>';
+    $seq =  '<p>>'.$title.'&#x0a;<Br>'.preg_replace("#(.{80})#","\\1<br>",$residues).'</p>';
+    $output_data .= '<div id="popup-message-content">'.$seq.'
+	                 </div>		
+	                 </div>
+	                 </div>
+	                 <div id="popup-message-background"></div>';	
+	print $output_data;
+  exit;			 
+}
+
+/**
+ *  Implementation of hook_theme().
+ */
+function i5k_features_theme() {
+  $core_path = drupal_get_path('module', 'i5k_features');
+
+  return array(
+	'tripal_feature_base' => array(
+      'variables' => array('node' => NULL),
+      'template' => 'tripal_feature_base',
+      'path' => "$core_path/theme/templates",
+    ),
+	'tripal_feature_transcripts' => array(
+      'variables' => array('node' => NULL),
+      'template' => 'tripal_feature_transcripts',
+      'path' => "$core_path/theme/templates",
+    ),
+	'tripal_feature_sequence' => array(
+      'variables' => array('node' => NULL),
+      'template' => 'tripal_feature_sequence',
+      'path' => "$core_path/theme/templates",
+    ),	
+  );
+}

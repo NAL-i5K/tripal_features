@@ -1,0 +1,40 @@
+<?php
+/**
+ * @file
+ * Contains functions used to install/uninstall i5k_features.
+ */
+
+/**
+ * Implementation of hook_install().
+ *
+ * @ingroup i5k_features
+ */
+function i5k_features_install() {
+  // set i5k_features module weight to 1
+  // and tripal_core module weight to 0
+  // Inorder to get the i5k_features core excuted before the tripal_core
+  $i5k_features = 'i5k_features';
+  db_update('{system}')
+        ->fields(array('weight' => 1))
+        ->condition('name', $i5k_features, '=')
+        ->execute();
+  $tripal_core = 'tripal_core';
+  db_update('{system}')
+        ->fields(array('weight' => 0))
+        ->condition('name', $tripal_core, '=')
+        ->execute();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ *
+ * @ingroup i5k_features
+ */
+function i5k_features_uninstall() {
+  // Make the i5k_features and tripal_core weights default to 0
+  db_update('{system}')
+    ->fields(array('weight' => 0))
+     ->condition(db_or()->condition('name', 'tripal_core', '=')
+      ->condition('name', 'i5k_features', '='))
+    ->execute();
+}
