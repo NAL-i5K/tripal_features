@@ -358,16 +358,16 @@ if (count($object_rels) > 0 or count($subject_rels) > 0) { ?>
         $references
       );
 	  
-	  $feature = chado_expand_var($feature, 'table', 'analysisfeature', $options);
-      $analyses = $feature->subject_id->analysisfeature;
+     $feature = chado_expand_var($feature, 'table', 'analysisfeature', $options);
+     $analyses = $feature->subject_id->analysisfeature;
 	  
-	  $src_values = array('feature_id' => $feature->subject_id->featureloc->feature_id->srcfeature_id->feature_id);
-      $srcfeature = chado_generate_var('analysisfeature', $src_values, $options);
-	  
-	  // Analyses - if and else statements cause the anaylses having different array formats.
+     $src_values = array('feature_id' => $feature->subject_id->featureloc->feature_id->srcfeature_id->feature_id);
+     $srcfeature = chado_generate_var('analysisfeature', $src_values, $options);
+//echo "<prE>"; print_r($analyses);	   echo "</prE>";
+      // Analyses - if and else statements cause the anaylses having different array formats.
+      $analysis_name = '';
       if(count($analyses) == 2) {  
-        $analysis_name = '';
-        foreach($analyses as $analysis) {  
+        foreach($analyses as $analysis) {
           $a_name = $analysis->analysis_id->name;
           if (property_exists($analysis->analysis_id, 'nid')) {
 	        //$options['target'] = '_blank';
@@ -381,8 +381,7 @@ if (count($object_rels) > 0 or count($subject_rels) > 0) { ?>
           $analysis_name .= l($a_name, "node/" . $analyses->analysis_id->nid)."<bR>";  
         }   
       }
-  
-	  // Source name comes under analysis 
+      // Source name comes under analysis 
       if(isset($srcfeature[0]->analysis_id) && count($srcfeature[0]->analysis_id)) {
         $src_analysis = $srcfeature[0]->analysis_id;
         $a_name = $src_analysis->name;
